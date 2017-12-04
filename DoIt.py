@@ -74,6 +74,7 @@ class ProductDetails(demiurge.Item):
 def wallAlert(urlSearch):
     # Load after data search
     data_temp = []
+    '''
     try:
         dataFile = open(SAVE_LOCATION, 'rb')
         data_save = pickle.load(dataFile)
@@ -81,7 +82,7 @@ def wallAlert(urlSearch):
         data_save = open(SAVE_LOCATION, 'wb')
         pickle.dump(data_temp, data_save)
         pass
-
+    '''
     # Read web
     results = Products.all(urlSearch)
     
@@ -91,13 +92,19 @@ def wallAlert(urlSearch):
                           , 'relativeUrl': item.url })
 
    
-  
+  '''
     # Check new items
     list_news = []
     if data_save_check and data_save != data_temp:
         for item in data_temp:
             if item not in data_save:
                 list_news.append(item)
+'''
+
+    # Check new items
+    list_news = []
+    for item in data_temp:
+        list_news.append(item)
 
     
     for item in list_news:
@@ -120,8 +127,8 @@ def wallAlert(urlSearch):
  
 
     # Save data
-    data_save = open(SAVE_LOCATION, 'wb')
-    pickle.dump(data_temp, data_save)
+   # data_save = open(SAVE_LOCATION, 'wb')
+    #pickle.dump(data_temp, data_save)
 
 
 
