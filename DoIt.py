@@ -84,29 +84,23 @@ def wallAlert(urlSearch):
 
     # Read web
     results = Products.all(urlSearch)
-    print "h"
+    
     for item in results:
-        print "d"+format(item.title)
         data_temp.append({'title': item.title
                           , 'price': item.price
                           , 'relativeUrl': item.url })
 
-    print "f"
-    print format(data_save)
-    print format(data_temp)
+   
+  
     # Check new items
     list_news = []
     if data_save_check and data_save != data_temp:
-        print "entrda"
         for item in data_temp:
-            print "giten"
             if item not in data_save:
-                print "aaaa"
                 list_news.append(item)
 
-    print "r"
+    
     for item in list_news:
-        print "w"
         # Get info from new items
         title = item['title'] + " - " + item['price']
         url = item['relativeUrl']
@@ -121,9 +115,7 @@ def wallAlert(urlSearch):
         if prod:
             telegram_handler.send_photo(telegram_chat_id,url)
             telegram_handler.send_message(telegram_chat_id,title+" <a href='"+url+">Click aqui</a>")
-        else:
-            print(title, body, url)
-            print('-' * 10)
+        
 
  
 
@@ -145,11 +137,11 @@ def main():
     for key in wallapop_keys:
         text_key = "analizando elemento: "+key
         
-        print "buscando: "+key
+       
         #Busqueda informacion
         
         urlSearch = 'http://es.wallapop.com/search?kws=' + key + '&maxPrice=&dist=0_&order=creationData-des&lat=41.398077&lng=2.170432'
-        print urlSearch
+        
         wallAlert(urlSearch)
 
      
