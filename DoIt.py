@@ -1,24 +1,51 @@
 import requests
 import datetime
 import demiurge, sys, getopt, os, pickle, tempfile
+import pymongo
 
 
+#open mongoclient from mlab
 
-#AREA DE CONFIGURACION Y PARAMETROS
+from pymongo import MongoClient
+mongo_uri = "mongodb://wallabot:wallabot@ds129906.mlab.com:29906/wallabot?authMechanism=SCRAM-SHA-1"
+client = MongoClient(mongo_uri)
+db = client.wallabot
+data_collection = db.data
+properties_collection = db.properties
 
-token = '504312938:AAE6YlVxjCg5e3iTu_a0v2MrJLTNoMqA_Yk'
-wallapop_keys = ['cuchillo']
-telegram_chat_id = '177115022'
-prod = True
-url_image_test = 'https://www.google.es/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png'
 
-##AREA CONFIGURACION WALLAPOP
-urlWallapop = 'http://es.wallapop.com'
+#Get properties
+properties = properties_collection.find_one({"type":"prod_properties"})
+properties_data = properties.get('data')
+properties_data_telegram = properties_data.get('telegram')
+properties_data_wallapop = properties_data.get('wallapop')
+
+telegram_enable = properties_data_telegram.get('enable')
+telegram_token = properties_data_telegram.get('token')
+telegram_chat_id = properties_data_telegram.get('chat_id')
+wallapop_keys = properties_data_wallapop.get('keys')
+wallapop_lat = properties_data_wallapop.get('lat')
+wallapop_lng = properties_data_wallapop.get('lng')
+wallapop_maxPrice = properties_data_wallapop.get('maxPrice')
+
+#Write mongo
+def writeData(visit_elem):
+    data_collection.insert_one({"uri":visit_elem})
+
+#find mongo
+def existData(visit_elem):
+    elem = data_collection.find_one({"uri":visit_elem})
+    if(elem):
+        return True
+    else:
+        return False
+
+
+#WALLAPOP CONFIG
+urlWallapop = 'https://es.wallapop.com'
 urlWallapopMobile = 'http://p.wallapop.com/i/'
-SAVE_LOCATION = os.path.join(tempfile.gettempdir(), 'alertWallapop10.pkl')
-data_save_check = True
 
-
+#Telegram bot handler
 class BotHandler:
 
     def __init__(self, token):
@@ -34,7 +61,7 @@ class BotHandler:
         return result_json
 
     def send_message(self, chat_id, text):
-        params = {'chat_id': chat_id, 'text': text}
+        params = {'chat_id': chat_id, 'text': text,'parse_mode':'html','disable_web_page_preview':True}
         method = 'sendMessage'
         resp = requests.post(self.api_url + method, params)
         return resp
@@ -58,7 +85,8 @@ class BotHandler:
 class Products(demiurge.Item):
     title = demiurge.TextField(selector='span.product-info-title')
     price = demiurge.TextField(selector='span.product-info-price')
-    url = demiurge.AttributeValueField(selector='img.card-product-image', attr='src')
+    url = demiurge.AttributeValueField(selector='div.card-product a:eq(0)', attr='href')
+    image_url = demiurge.AttributeValueField(selector='img.card-product-image', attr='src')
     class Meta:
         selector = 'div.card-product'
 
@@ -70,86 +98,63 @@ class ProductDetails(demiurge.Item):
 
 
 
-#METODO ANALISIS
-def wallAlert(urlSearch):
+#alert 
+def wallAlert(urlSearch,key):
     # Load after data search
     data_temp = []
-    '''
-    try:
-        dataFile = open(SAVE_LOCATION, 'rb')
-        data_save = pickle.load(dataFile)
-    except:
-        data_save = open(SAVE_LOCATION, 'wb')
-        pickle.dump(data_temp, data_save)
-        pass
-    '''
+
+    
     # Read web
     results = Products.all(urlSearch)
     
     for item in results:
         data_temp.append({'title': item.title
                           , 'price': item.price
-                          , 'relativeUrl': item.url })
+                          , 'url': item.url 
+                          , 'image_url' : item.image_url})
 
    
-    '''
-    # Check new items
-    list_news = []
-    if data_save_check and data_save != data_temp:
-        for item in data_temp:
-            if item not in data_save:
-                list_news.append(item)
-    '''
-
+   
     # Check new items
     list_news = []
     for item in data_temp:
-        list_news.append(item)
+        if not existData(item.get('url')):
+            list_news.append(item)    
 
     
-    for item in list_news:
-        # Get info from new items
-        title = item['title'] + " - " + item['price']
-        url = item['relativeUrl']
-        #itemDetails = ProductDetails.one(url)
-        #body = itemDetails.description + "\n" + itemDetails.location
-        body=''
-        productID = url.split("-")[-1]
-        applink = urlWallapopMobile + productID
+    if not list_news:
+        telegram_handler.send_message(telegram_chat_id,"Nada nuevo de "+key)
+    else:
+        for item in list_news:
+            # Get info from new items
+            title = item['title'] + " - " + item['price']
+            url = item['url']
+            image_url = item['image_url']
+            productID = url.split("-")[-1]
+            applink = urlWallapopMobile + productID
+           
+            # Send Alert
+            writeData(url)
 
-        # Send Alert
-       
-        if prod:
-            telegram_handler.send_photo(telegram_chat_id,url)
-            telegram_handler.send_message(telegram_chat_id,title+" <a href='"+url+">Click aqui</a>")
-        
-
+            if telegram_enable:
+                telegram_handler.send_photo(telegram_chat_id,image_url)
+                telegram_handler.send_message(telegram_chat_id,'<b>'+title+'</b>'+applink)
+               
+               
  
-
-    # Save data
-   # data_save = open(SAVE_LOCATION, 'wb')
-    #pickle.dump(data_temp, data_save)
-
-
-
 
 
 #MAIN
-
-telegram_handler = BotHandler(token)
+telegram_handler = BotHandler(telegram_token)
 
 def main():
     #iteramos las keys
     
-    for key in wallapop_keys:
-        text_key = "analizando elemento: "+key
-        
-       
+    for key in wallapop_keys:    
         #Busqueda informacion
         
-        urlSearch = 'http://es.wallapop.com/search?kws=' + key + '&maxPrice=&dist=0_&order=creationData-des&lat=41.398077&lng=2.170432'
-        
-        wallAlert(urlSearch)
+        urlSearch = 'http://es.wallapop.com/search?kws=' + key + '&maxPrice='+wallapop_maxPrice+'&dist=500&order=creationData-des&publishDate=24&lat='+ wallapop_lat+'&lng='+wallapop_lng
+        wallAlert(urlSearch,key)
 
      
         
