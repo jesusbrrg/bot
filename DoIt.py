@@ -92,14 +92,14 @@ def wallAlert(urlSearch):
                           , 'relativeUrl': item.url })
 
    
-  '''
+    '''
     # Check new items
     list_news = []
     if data_save_check and data_save != data_temp:
         for item in data_temp:
             if item not in data_save:
                 list_news.append(item)
-'''
+    '''
 
     # Check new items
     list_news = []
